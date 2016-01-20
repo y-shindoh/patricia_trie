@@ -257,6 +257,17 @@ namespace ys
 		PatriciaTrie() = default;
 
 		/**
+		 * コピー・コンストラクタ (使用禁止)
+		 */
+		PatriciaTrie(const PatriciaTrie<CTYPE, STYPE>&) = delete;
+
+		/**
+		 * 代入演算子 (使用禁止)
+		 */
+		BoyerMooreSearcher&
+		operator =(const PatriciaTrie<CTYPE, STYPE>&) = delete;
+
+		/**
 		 * デストラクタ
 		 */
 		virtual
