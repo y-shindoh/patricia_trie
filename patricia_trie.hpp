@@ -259,13 +259,13 @@ namespace ys
 		/**
 		 * コピー・コンストラクタ (使用禁止)
 		 */
-		PatriciaTrie(const PatriciaTrie<CTYPE, STYPE>&) = delete;
+		PatriciaTrie(const PatriciaTrie<KTYPE, VTYPE>&) = delete;
 
 		/**
 		 * 代入演算子 (使用禁止)
 		 */
-		BoyerMooreSearcher&
-		operator =(const PatriciaTrie<CTYPE, STYPE>&) = delete;
+		PatriciaTrie&
+		operator =(const PatriciaTrie<KTYPE, VTYPE>&) = delete;
 
 		/**
 		 * デストラクタ
