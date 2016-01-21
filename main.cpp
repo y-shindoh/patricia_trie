@@ -34,6 +34,8 @@ int main()
 		pt.add_key(k[i], std::strlen(k[i]), i);
 	}
 
+	pt.print();
+
 	// キー探索
 	for (int i(0); i < N; ++i) {
 		unsigned int r = pt.get_value(k[i], std::strlen(k[i]));

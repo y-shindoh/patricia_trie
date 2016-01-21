@@ -8,8 +8,10 @@
 #ifndef	__PATRICIA_TRIE_HPP__
 #define	__PATRICIA_TRIE_HPP__	"patricia_trie.hpp"
 
+#include <cstdio>
 #include <cstring>
 #include <cassert>
+#include <iostream>
 #include <unordered_map>
 #include <algorithm>
 
@@ -175,6 +177,29 @@ namespace ys
 						if (it != c_.end()) {
 							it->second->get_values(buffer + l_, length - l_, values);
 						}
+					}
+				}
+
+			/**
+			 * ノードの状態を出力
+			 * @param[in,out]	file	出力先
+			 * @param[in]	d	ノードの深さ
+			 * @note	出力形式は「キーの長さ:キーの先頭の値 (キーに対応する値)」となる。
+			 */
+			void
+			print(FILE* file,
+				  size_t d = 0) const
+				{
+					for (size_t i(0); i < d; ++i) std::fprintf(file, "  ");
+					if (v_ == INV_) {
+						std::fprintf(file, "%lu:%G (-)\n", (size_t)l_, (double)d_[0]);
+					}
+					else {
+						std::fprintf(file, "%lu:%G (%lu)\n", (size_t)l_, (double)d_[0], (size_t)v_);
+					}
+
+					for (auto c : c_) {
+						c.second->print(file, d + 1);
 					}
 				}
 
@@ -368,6 +393,17 @@ namespace ys
 				assert(0 < length);
 
 				return get_value(key, length) != INVALID_;
+			}
+
+		/**
+		 * キーの追加状態を出力
+		 * @param[in,out]	file	出力先
+		 * @note	出力形式はノード毎に「キーの長さ:キーの先頭の値 (キーに対応する値)」となる。
+		 */
+		void
+		print(FILE* file = stdout) const
+			{
+				for (auto h : head_) h.second->print(file);
 			}
 	};
 };
