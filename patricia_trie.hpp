@@ -1,27 +1,31 @@
 /* -*- coding: utf-8; tab-width: 4 -*- */
 /**
  * @file	patricia_trie.hpp
- * @brief	パトリシア木
+ * @brief	C++ template library of patricia trie.
  * @author	Yasutaka SHINDOH / 新堂 安孝
  */
 
 #ifndef	__PATRICIA_TRIE_HPP__
 #define	__PATRICIA_TRIE_HPP__	"patricia_trie.hpp"
 
+#if	!defined(__cplusplus) || __cplusplus < 201103L
+#error	This library requires a C++11 compiler.
+#endif
+
 #include <cstdio>
 #include <cstring>
 #include <cassert>
-#include <iostream>
 #include <unordered_map>
-#include <algorithm>
+#include <utility>
 
 namespace ys
 {
 	/**
 	 * パトリシア木
-	 * @note	テンプレートのパラメータ @a VTYPE には符号なし整数を与えること。
+	 * @note	テンプレートのパラメータ @a VTYPE には、符号なし整数を与えること。
+	 * @note	テンプレートのパラメータ @a INVALID には、@a VTYPE の不正値を与えること。
 	 */
-	template<typename KTYPE, typename VTYPE>
+	template<typename KTYPE, typename VTYPE, VTYPE INVALID = ~(VTYPE)0>
 	class PatriciaTrie
 	{
 	private:
@@ -29,18 +33,15 @@ namespace ys
 		/**
 		 * パトリシア木の内部で用いるノード
 		 */
-		template<typename K_, typename N_>
+		template<typename K_, typename N_, N_ I_ = INVALID>
 		class Node
 		{
 		public:
 
-			K_* d_;	///< キーの全体
+			std::unordered_map<K_, Node<K_, N_>*>* c_;	///< 子ノード
+			K_* d_;	///< キーの全体 (0を許す)
 			N_ l_;	///< キーの全体の長さ
 			N_ v_;	///< キー末端
-			std::unordered_map<K_, Node<K_, N_>*> c_;	///< 子ノード
-
-			/// フィールド @a v_ の不正値
-			static const N_ INV_ = ~(N_)0;
 
 		private:
 
@@ -49,19 +50,19 @@ namespace ys
 			 * @param[in]	key	キー
 			 * @param[in]	length	配列 @a key の要素数
 			 * @param[in]	value	キーに対応した値
-			 * @note	引数 @a value が @a INV_ の時は、ノードは非末端。
+			 * @note	引数 @a value が @a I_ の時は、ノードは非末端。
 			 */
 			Node(const K_* key,
 				 N_ length,
 				 N_ value)
-				: l_(length), v_(value)
+				: c_(0), d_(0), l_(length), v_(value)
 				{
 					assert(key);
-					assert(0 < length);
 
-					d_ = new K_[length];
-
-					std::memcpy((void*)d_, (const void*)key, sizeof(K_) * length);
+					if (0 < length) {
+						d_ = new K_[length];
+						std::memcpy((void*)d_, (const void*)key, sizeof(K_) * length);
+					}
 				}
 
 			/**
@@ -71,15 +72,19 @@ namespace ys
 			void
 			cut_head(N_ length)
 				{
-					assert(length < l_);
+					assert(length <= l_);
 
 					l_ -= length;
-					K_* d = new K_[l_];
+					if (d_) delete [] d_;
 
-					std::memcpy((void*)d, (const void*)(d_ + length), sizeof(K_) * l_);
-
-					delete [] d_;
-					d_ = d;
+					if (0 < l_) {
+						K_* d = new K_[l_];
+						std::memcpy((void*)d, (const void*)(d_ + length), sizeof(K_) * l_);
+						d_ = d;
+					}
+					else {
+						d_ = 0;
+					}
 				}
 
 		public:
@@ -89,9 +94,12 @@ namespace ys
 			 */
 			~Node()
 				{
-					delete [] d_;
+					if (d_) delete [] d_;
 
-					for (auto v : c_) { delete v.second; }
+					if (c_) {
+						for (auto c : *c_) { delete c.second; }
+						delete c_;
+					}
 				}
 
 			/**
@@ -106,24 +114,20 @@ namespace ys
 					   N_ length)
 				{
 					assert(key);
-					assert(0 < length);
-					assert(d_[0] == key[0]);
 
-					if (length < l_) return INV_;
-
-					for (N_ i(1); i < l_; ++i) {
-						if (d_[i] != key[i]) return INV_;
-					}
+					if (length < l_) return I_;
+					if (std::memcmp((const void*)d_, (const void*)key, sizeof(K_) * l_) != 0) return I_;
 					if (length == l_) {
 						N_ r(v_);
-						v_ = INV_;
+						v_ = I_;
 						return r;
 					}
 
-					auto it = c_.find(key[l_]);
-					if (it == c_.end()) return INV_;
+					if (!c_) return I_;
+					auto it = c_->find(key[l_]);
+					if (it == c_->end()) return I_;
 
-					return it->second->remove_key(key + l_, length - l_);
+					return it->second->remove_key(key + (l_ + 1), length - (l_ + 1));
 				}
 
 			/**
@@ -131,27 +135,23 @@ namespace ys
 			 * @param[in]	key	探索対象のキー
 			 * @param[in]	length	配列 @a key の長さ
 			 * @return	キーに対応した値
-			 * @note	キーが見つからなかったときは @a INV_ を返す。
+			 * @note	キーが見つからなかったときは @a I_ を返す。
 			 */
 			N_
 			get_value(const K_* key,
 					  N_ length) const
 				{
 					assert(key);
-					assert(0 < length);
-					assert(d_[0] == key[0]);
 
-					if (length < l_) return INV_;
-
-					for (N_ i(1); i < l_; ++i) {
-						if (d_[i] != key[i]) return INV_;
-					}
+					if (length < l_) return I_;
+					if (std::memcmp((const void*)d_, (const void*)key, sizeof(K_) * l_) != 0) return I_;
 					if (length == l_) return v_;
 
-					auto it = c_.find(key[l_]);
-					if (it == c_.end()) return INV_;
+					if (!c_) return I_;
+					auto it = c_->find(key[l_]);
+					if (it == c_->end()) return I_;
 
-					return it->second->get_value(key + l_, length - l_);
+					return it->second->get_value(key + (l_ + 1), length - (l_ + 1));
 				}
 
 			/**
@@ -166,16 +166,15 @@ namespace ys
 					   std::vector<N_>& values) const
 				{
 					assert(buffer);
-					assert(0 < length);
-					assert(d_[0] == buffer[0]);
 
 					if (length < l_) return;
-					if (v_ != INV_) values.push_back(v_);
+					if (std::memcmp((const void*)d_, (const void*)buffer, sizeof(K_) * l_) != 0) return;
+					if (v_ != I_) values.push_back(v_);
 
-					if (l_ < length) {
-						auto it = c_.find(buffer[l_]);
-						if (it != c_.end()) {
-							it->second->get_values(buffer + l_, length - l_, values);
+					if (l_ < length && c_) {
+						auto it = c_->find(buffer[l_]);
+						if (it != c_->end()) {
+							it->second->get_values(buffer + (l_ + 1), length - (l_ + 1), values);
 						}
 					}
 				}
@@ -184,22 +183,25 @@ namespace ys
 			 * ノードの状態を出力
 			 * @param[in,out]	file	出力先
 			 * @param[in]	d	ノードの深さ
-			 * @note	出力形式は「キーの長さ:キーの先頭の値 (キーに対応する値)」となる。
+			 * @note	出力形式は「<キーの先頭の値> +キーの長さ (キーに対応する値)」となる。
 			 */
 			void
 			print(FILE* file,
+				  const K_& k,
 				  size_t d = 0) const
 				{
 					for (size_t i(0); i < d; ++i) std::fprintf(file, "  ");
-					if (v_ == INV_) {
-						std::fprintf(file, "%lu:%G (-)\n", (size_t)l_, (double)d_[0]);
+					if (v_ == I_) {
+						std::fprintf(file, "<%G> +%lu (-)\n", (double)k, (size_t)l_);
 					}
 					else {
-						std::fprintf(file, "%lu:%G (%lu)\n", (size_t)l_, (double)d_[0], (size_t)v_);
+						std::fprintf(file, "<%G> +%lu (%lu)\n", (double)k, (size_t)l_, (size_t)v_);
 					}
 
-					for (auto c : c_) {
-						c.second->print(file, d + 1);
+					if (c_) {
+						for (auto c : *c_) {
+							c.second->print(file, c.first, d + 1);
+						}
 					}
 				}
 
@@ -209,8 +211,9 @@ namespace ys
 			 * @param[in]	key	キー
 			 * @param[in]	length	配列 @a key の要素数
 			 * @param[in]	value	キーに対応した値
-			 * @note	引数 @a value には @a INV_ を代入してはいけない。
+			 * @note	引数 @a value には @a I_ を代入してはいけない。
 			 * @return	追加後のノード
+			 * @todo	メモリ確保失敗時の扱いについて考える。
 			 */
 			static Node<K_, N_>*
 			Add(Node<K_, N_>* node,
@@ -219,13 +222,10 @@ namespace ys
 				N_ value = 0)
 				{
 					assert(key);
-					assert(0 < length);
-					assert(value != INV_);	// 非末端ノードは生成しない
+					assert(value != I_);	// 非末端ノードは生成しない
 
 					if (node) {
-						assert(node->d_[0] == key[0]);
-
-						N_ i(1);
+						N_ i(0);
 						N_ n = std::min(node->l_, length);
 
 						while (i < n) {
@@ -235,24 +235,31 @@ namespace ys
 
 						if (i < n) {
 							// 分離
-							Node<K_, N_>* p = new Node<K_, N_>(key, i, INV_);
-							p->c_[node->d_[i]] = node;
-							node->cut_head(i);
-							p->c_[key[i]] = new Node<K_, N_>(key + i, length - i, value);
+							Node<K_, N_>* p = new Node<K_, N_>(key, i, I_);
+							p->c_ = new std::unordered_map<K_, Node<K_, N_>*>;
+							(*p->c_)[node->d_[i]] = node;
+							node->cut_head(i + 1);
+							(*p->c_)[key[i]] = new Node<K_, N_>(key + (i + 1), length - (i + 1), value);
 							node = p;
 						}
 						else {
 							if (node->l_ < length) {
 								// 追加
 								Node<K_, N_>* c(0);
-								if (node->c_.find(key[i]) != node->c_.end()) c = node->c_[key[i]];
-								node->c_[key[i]] = Node<K_, N_>::Add(c, key + i, length - i, value);
+								if (node->c_) {
+									if (node->c_->find(key[i]) != node->c_->end()) c = (*node->c_)[key[i]];
+								}
+								else {
+									node->c_ = new std::unordered_map<K_, Node<K_, N_>*>;
+								}
+								(*node->c_)[key[i]] = Node<K_, N_>::Add(c, key + (i + 1), length - (i + 1), value);
 							}
 							else if (length < node->l_) {
 								// 追加
 								Node<K_, N_>* p = new Node<K_, N_>(key, length, value);
-								p->c_[node->d_[i]] = node;
-								node->cut_head(i);
+								p->c_ = new std::unordered_map<K_, Node<K_, N_>*>;
+								(*p->c_)[node->d_[i]] = node;
+								node->cut_head(i + 1);
 								node = p;
 							}
 							else {
@@ -273,9 +280,6 @@ namespace ys
 
 	public:
 
-		/// キーに対応する値の不正値
-		static const VTYPE INVALID_ = Node<KTYPE, VTYPE>::INV_;
-
 		/**
 		 * コンストラクタ
 		 */
@@ -284,13 +288,13 @@ namespace ys
 		/**
 		 * コピー・コンストラクタ (使用禁止)
 		 */
-		PatriciaTrie(const PatriciaTrie<KTYPE, VTYPE>&) = delete;
+		PatriciaTrie(const PatriciaTrie<KTYPE, VTYPE, INVALID>&) = delete;
 
 		/**
 		 * 代入演算子 (使用禁止)
 		 */
 		PatriciaTrie&
-		operator =(const PatriciaTrie<KTYPE, VTYPE>&) = delete;
+		operator =(const PatriciaTrie<KTYPE, VTYPE, INVALID>&) = delete;
 
 		/**
 		 * デストラクタ
@@ -306,7 +310,7 @@ namespace ys
 		 * @param[in]	key	キー
 		 * @param[in]	length	配列 @a key の要素数
 		 * @param[in]	value	キー @a key に対応する値
-		 * @note	引数 @a value に @a INVALID_ を代入しないこと。
+		 * @note	引数 @a value に @a INVALID を代入しないこと。
 		 */
 		void
 		add_key(const KTYPE* key,
@@ -315,11 +319,11 @@ namespace ys
 			{
 				assert(key);
 				assert(0 < length);
-				assert(value != INVALID_);
+				assert(value != INVALID);
 
 				Node<KTYPE, VTYPE>* node(0);
 				if (head_.find(key[0]) != head_.end()) node = head_[key[0]];
-				head_[key[0]] = Node<KTYPE, VTYPE>::Add(node, key, length, value);
+				head_[key[0]] = Node<KTYPE, VTYPE>::Add(node, key + 1, length - 1, value);
 			}
 
 		/**
@@ -327,7 +331,7 @@ namespace ys
 		 * @param[in]	key	キー
 		 * @param[in]	length	配列 @a key の要素数
 		 * @return	キー @a key に対応する値
-		 * @note	キーが見つからなかった場合は @a INVALID_ が返却される。
+		 * @note	キーが見つからなかった場合は @a INVALID が返却される。
 		 */
 		VTYPE
 		remove_key(const KTYPE* key,
@@ -338,7 +342,7 @@ namespace ys
 
 				auto it = head_.find(key[0]);
 				if (it == head_.end()) return false;
-				return it->second->remove_key(key, length);
+				return it->second->remove_key(key + 1, length - 1);
 			}
 
 		/**
@@ -346,7 +350,7 @@ namespace ys
 		 * @param[in]	key	キー
 		 * @param[in]	length	配列 @a key の要素数
 		 * @return	キー @a key に対応する値
-		 * @note	キーが見つからなかった場合は @a INVALID_ が返却される。
+		 * @note	キーが見つからなかった場合は @a INVALID が返却される。
 		 */
 		VTYPE
 		get_value(const KTYPE* key,
@@ -357,7 +361,7 @@ namespace ys
 
 				auto it = head_.find(key[0]);
 				if (it == head_.end()) return false;
-				return it->second->get_value(key, length);
+				return it->second->get_value(key + 1, length - 1);
 			}
 
 		/**
@@ -376,7 +380,7 @@ namespace ys
 
 				auto it = head_.find(buffer[0]);
 				if (it == head_.end()) return;
-				it->second->get_values(buffer, length, values);
+				it->second->get_values(buffer + 1, length - 1, values);
 			}
 
 		/**
@@ -392,7 +396,7 @@ namespace ys
 				assert(key);
 				assert(0 < length);
 
-				return get_value(key, length) != INVALID_;
+				return get_value(key, length) != INVALID;
 			}
 
 		/**
@@ -403,7 +407,17 @@ namespace ys
 		void
 		print(FILE* file = stdout) const
 			{
-				for (auto h : head_) h.second->print(file);
+				for (auto h : head_) h.second->print(file, h.first);
+			}
+
+		/**
+		 * 値 @a INVALID を取得
+		 * @return	値 @a INVALID
+		 */
+		static VTYPE
+		InvalidValue()
+			{
+				return INVALID;
 			}
 	};
 };

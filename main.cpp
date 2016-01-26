@@ -39,7 +39,7 @@ int main()
 	// キー探索
 	for (int i(0); i < N; ++i) {
 		unsigned int r = pt.get_value(k[i], std::strlen(k[i]));
-		if (r != decltype(pt)::INVALID_) {
+		if (r != decltype(pt)::InvalidValue()) {
 			std::printf("[%d: %u] %s\n", i, r, k[r]);
 		}
 		else {
@@ -53,7 +53,7 @@ int main()
 	// キー探索 (共通接頭辞)
 	pt.get_values(b, std::strlen(b), v);
 	for (auto i : v) {
-		std::printf("[%d] %s\n", i, k[i]);
+		std::printf("[%u] %s\n", i, k[i]);
 	}
 
 	// キー探索 (キー削除+共通接頭辞)
@@ -61,7 +61,15 @@ int main()
 	v.clear();
 	pt.get_values(b, std::strlen(b), v);
 	for (auto i : v) {
-		std::printf("[%d] %s\n", i, k[i]);
+		std::printf("[%u] %s\n", i, k[i]);
+	}
+
+	// キー探索 (キー追加+共通接頭辞)
+	pt.add_key(k[1], std::strlen(k[1]), 1);
+	v.clear();
+	pt.get_values(b, std::strlen(b), v);
+	for (auto i : v) {
+		std::printf("[%u] %s\n", i, k[i]);
 	}
 
 	return 0;
