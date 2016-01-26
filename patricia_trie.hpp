@@ -22,10 +22,10 @@ namespace ys
 {
 	/**
 	 * パトリシア木
-	 * @note	テンプレートのパラメータ @a VTYPE には、符号なし整数を与えること。
+	 * @note	テンプレートのパラメータ @a LTYPE には、符号なし整数を与えること。
 	 * @note	テンプレートのパラメータ @a INVALID には、@a VTYPE の不正値を与えること。
 	 */
-	template<typename KTYPE, typename VTYPE, VTYPE INVALID = ~(VTYPE)0>
+	template<typename KTYPE, typename LTYPE, typename VTYPE, VTYPE INVALID = ~(VTYPE)0>
 	class PatriciaTrie
 	{
 	private:
@@ -33,15 +33,15 @@ namespace ys
 		/**
 		 * パトリシア木の内部で用いるノード
 		 */
-		template<typename K_, typename N_, N_ I_ = INVALID>
+		template<typename K_, typename L_, typename V_, V_ I_ = INVALID>
 		class Node
 		{
 		public:
 
-			std::unordered_map<K_, Node<K_, N_>*>* c_;	///< 子ノード
+			std::unordered_map<K_, Node<K_, L_, V_>*>* c_;	///< 子ノード
 			K_* d_;	///< キーの全体 (0を許す)
-			N_ l_;	///< キーの全体の長さ
-			N_ v_;	///< キー末端
+			L_ l_;	///< キーの全体の長さ
+			V_ v_;	///< キー末端
 
 		private:
 
@@ -53,8 +53,8 @@ namespace ys
 			 * @note	引数 @a value が @a I_ の時は、ノードは非末端。
 			 */
 			Node(const K_* key,
-				 N_ length,
-				 N_ value)
+				 L_ length,
+				 V_ value)
 				: c_(0), d_(0), l_(length), v_(value)
 				{
 					assert(key);
@@ -70,7 +70,7 @@ namespace ys
 			 * @param[in]	length	除去する要素数
 			 */
 			void
-			cut_head(N_ length)
+			cut_head(L_ length)
 				{
 					assert(length <= l_);
 
@@ -109,16 +109,16 @@ namespace ys
 			 * @return	キー @a key に対応した値
 			 * @todo	必要であればエッジの統合を実現する。
 			 */
-			N_
+			V_
 			remove_key(const K_* key,
-					   N_ length)
+					   L_ length)
 				{
 					assert(key);
 
 					if (length < l_) return I_;
 					if (std::memcmp((const void*)d_, (const void*)key, sizeof(K_) * l_) != 0) return I_;
 					if (length == l_) {
-						N_ r(v_);
+						V_ r(v_);
 						v_ = I_;
 						return r;
 					}
@@ -137,9 +137,9 @@ namespace ys
 			 * @return	キーに対応した値
 			 * @note	キーが見つからなかったときは @a I_ を返す。
 			 */
-			N_
+			V_
 			get_value(const K_* key,
-					  N_ length) const
+					  L_ length) const
 				{
 					assert(key);
 
@@ -162,8 +162,8 @@ namespace ys
 			 */
 			void
 			get_values(const K_* buffer,
-					   N_ length,
-					   std::vector<N_>& values) const
+					   L_ length,
+					   std::vector<V_>& values) const
 				{
 					assert(buffer);
 
@@ -215,18 +215,18 @@ namespace ys
 			 * @return	追加後のノード
 			 * @todo	メモリ確保失敗時の扱いについて考える。
 			 */
-			static Node<K_, N_>*
-			Add(Node<K_, N_>* node,
+			static Node<K_, L_, V_>*
+			Add(Node<K_, L_, V_>* node,
 				const K_* key,
-				N_ length,
-				N_ value = 0)
+				L_ length,
+				V_ value = 0)
 				{
 					assert(key);
 					assert(value != I_);	// 非末端ノードは生成しない
 
 					if (node) {
-						N_ i(0);
-						N_ n = std::min(node->l_, length);
+						L_ i(0);
+						L_ n = std::min(node->l_, length);
 
 						while (i < n) {
 							if (node->d_[i] != key[i]) break;
@@ -235,29 +235,29 @@ namespace ys
 
 						if (i < n) {
 							// 分離
-							Node<K_, N_>* p = new Node<K_, N_>(key, i, I_);
-							p->c_ = new std::unordered_map<K_, Node<K_, N_>*>;
+							Node<K_, L_, V_>* p = new Node<K_, L_, V_>(key, i, I_);
+							p->c_ = new std::unordered_map<K_, Node<K_, L_, V_>*>;
 							(*p->c_)[node->d_[i]] = node;
 							node->cut_head(i + 1);
-							(*p->c_)[key[i]] = new Node<K_, N_>(key + (i + 1), length - (i + 1), value);
+							(*p->c_)[key[i]] = new Node<K_, L_, V_>(key + (i + 1), length - (i + 1), value);
 							node = p;
 						}
 						else {
 							if (node->l_ < length) {
 								// 追加
-								Node<K_, N_>* c(0);
+								Node<K_, L_, V_>* c(0);
 								if (node->c_) {
 									if (node->c_->find(key[i]) != node->c_->end()) c = (*node->c_)[key[i]];
 								}
 								else {
-									node->c_ = new std::unordered_map<K_, Node<K_, N_>*>;
+									node->c_ = new std::unordered_map<K_, Node<K_, L_, V_>*>;
 								}
-								(*node->c_)[key[i]] = Node<K_, N_>::Add(c, key + (i + 1), length - (i + 1), value);
+								(*node->c_)[key[i]] = Node<K_, L_, V_>::Add(c, key + (i + 1), length - (i + 1), value);
 							}
 							else if (length < node->l_) {
 								// 追加
-								Node<K_, N_>* p = new Node<K_, N_>(key, length, value);
-								p->c_ = new std::unordered_map<K_, Node<K_, N_>*>;
+								Node<K_, L_, V_>* p = new Node<K_, L_, V_>(key, length, value);
+								p->c_ = new std::unordered_map<K_, Node<K_, L_, V_>*>;
 								(*p->c_)[node->d_[i]] = node;
 								node->cut_head(i + 1);
 								node = p;
@@ -269,14 +269,14 @@ namespace ys
 						}
 					}
 					else {
-						node = new Node<K_, N_>(key, length, value);
+						node = new Node<K_, L_, V_>(key, length, value);
 					}
 
 					return node;
 				}
 		};
 
-		std::unordered_map<KTYPE, Node<KTYPE, VTYPE>*> head_;	///< ノード群
+		std::unordered_map<KTYPE, Node<KTYPE, LTYPE, VTYPE>*> head_;	///< ノード群
 
 	public:
 
@@ -288,13 +288,13 @@ namespace ys
 		/**
 		 * コピー・コンストラクタ (使用禁止)
 		 */
-		PatriciaTrie(const PatriciaTrie<KTYPE, VTYPE, INVALID>&) = delete;
+		PatriciaTrie(const PatriciaTrie<KTYPE, LTYPE, VTYPE, INVALID>&) = delete;
 
 		/**
 		 * 代入演算子 (使用禁止)
 		 */
 		PatriciaTrie&
-		operator =(const PatriciaTrie<KTYPE, VTYPE, INVALID>&) = delete;
+		operator =(const PatriciaTrie<KTYPE, LTYPE, VTYPE, INVALID>&) = delete;
 
 		/**
 		 * デストラクタ
@@ -314,16 +314,16 @@ namespace ys
 		 */
 		void
 		add_key(const KTYPE* key,
-				VTYPE length,
+				LTYPE length,
 				VTYPE value = 0)
 			{
 				assert(key);
 				assert(0 < length);
 				assert(value != INVALID);
 
-				Node<KTYPE, VTYPE>* node(0);
+				Node<KTYPE, LTYPE, VTYPE>* node(0);
 				if (head_.find(key[0]) != head_.end()) node = head_[key[0]];
-				head_[key[0]] = Node<KTYPE, VTYPE>::Add(node, key + 1, length - 1, value);
+				head_[key[0]] = Node<KTYPE, LTYPE, VTYPE>::Add(node, key + 1, length - 1, value);
 			}
 
 		/**
@@ -335,7 +335,7 @@ namespace ys
 		 */
 		VTYPE
 		remove_key(const KTYPE* key,
-				   VTYPE length)
+				   LTYPE length)
 			{
 				assert(key);
 				assert(0 < length);
@@ -354,7 +354,7 @@ namespace ys
 		 */
 		VTYPE
 		get_value(const KTYPE* key,
-				  VTYPE length) const
+				  LTYPE length) const
 			{
 				assert(key);
 				assert(0 < length);
@@ -372,7 +372,7 @@ namespace ys
 		 */
 		void
 		get_values(const KTYPE* buffer,
-				   VTYPE length,
+				   LTYPE length,
 				   std::vector<VTYPE>& values) const
 			{
 				assert(buffer);
@@ -391,7 +391,7 @@ namespace ys
 		 */
 		bool
 		find_key(const KTYPE* key,
-				 VTYPE length) const
+				 LTYPE length) const
 			{
 				assert(key);
 				assert(0 < length);

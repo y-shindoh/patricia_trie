@@ -26,7 +26,7 @@ int main()
 							"今日からがんばる。つもりです。",
 							"これは"};
 
-	ys::PatriciaTrie<char, unsigned int> pt;
+	ys::PatriciaTrie<char, unsigned int, unsigned int> pt;
 
 	// キー登録 (偶数番目のみ)
 	for (int i(0); i < N; ++i) {
