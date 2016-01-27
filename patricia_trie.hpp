@@ -341,7 +341,7 @@ namespace ys
 				assert(0 < length);
 
 				auto it = head_.find(key[0]);
-				if (it == head_.end()) return false;
+				if (it == head_.end()) return INVALID;
 				return it->second->remove_key(key + 1, length - 1);
 			}
 
@@ -360,7 +360,7 @@ namespace ys
 				assert(0 < length);
 
 				auto it = head_.find(key[0]);
-				if (it == head_.end()) return false;
+				if (it == head_.end()) return INVALID;
 				return it->second->get_value(key + 1, length - 1);
 			}
 
