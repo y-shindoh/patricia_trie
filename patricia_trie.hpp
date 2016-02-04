@@ -16,6 +16,7 @@
 #include <cstring>
 #include <cassert>
 #include <unordered_map>
+#include <vector>
 #include <utility>
 
 namespace ys
